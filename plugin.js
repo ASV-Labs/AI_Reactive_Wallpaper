@@ -103,6 +103,10 @@ const STORAGE_KEYS = {
   panePlacement: 'panePlacement'
 }
 
+// Four edge docks use the workspace dock contract. `floating` is Hermes'
+// draggable in-window pane surface; it is not a CSS overlay or a top placement.
+const PANE_PLACEMENTS = ['bottom', 'top', 'left', 'right', 'floating']
+
 const DEFAULT_WATCHED = ['openai', 'anthropic', 'google', 'xai']
 
 let _storage = null
@@ -274,9 +278,30 @@ function loadSettings() {
   const colors = Object.assign({}, DEFAULT_COLORS, storedColors || {})
   const animMode = (_storage && _storage.get(STORAGE_KEYS.animMode, 'breathe')) || 'breathe'
   const watched = (_storage && _storage.get(STORAGE_KEYS.watched, DEFAULT_WATCHED)) || DEFAULT_WATCHED
-  const panePlacement =
+  const storedPlacement =
     (_storage && _storage.get(STORAGE_KEYS.panePlacement, 'bottom')) || 'bottom'
+  const panePlacement = PANE_PLACEMENTS.indexOf(storedPlacement) !== -1 ? storedPlacement : 'bottom'
   return { colors: colors, animMode: animMode, watched: watched, panePlacement: panePlacement }
+}
+
+function paneDataFor(placement) {
+  if (placement === 'floating') {
+    return {
+      placement: 'floating',
+      anchor: 'bottom-right',
+      width: '180px',
+      height: '180px'
+    }
+  }
+  // Do not use `placement: 'top'`: top is a dock position, while `main` +
+  // `dock` is the SDK contract for every workspace edge.
+  const edge = PANE_PLACEMENTS.indexOf(placement) !== -1 ? placement : 'bottom'
+  const horizontal = edge === 'left' || edge === 'right'
+  return {
+    placement: 'main',
+    dock: { pane: 'workspace', pos: edge },
+    ...(horizontal ? { width: '260px' } : { height: '200px' })
+  }
 }
 
 function savePartial(key, value) {
@@ -865,7 +890,7 @@ function SettingsPane() {
     })
   })
 
-  const placementButtons = ['bottom', 'right'].map(function (p) {
+  const placementButtons = PANE_PLACEMENTS.map(function (p) {
     const btnProps = {
       key: p,
       size: 'sm',
@@ -875,7 +900,9 @@ function SettingsPane() {
         if (host.notify) {
           host.notify({
             kind: 'info',
-            message: 'Placement saved as ' + p + '. Reload plugins or re-open pane to apply.'
+            message:
+              'Placement saved as ' + p +
+              '. Reload desktop plugins to apply. Floating is draggable and collapsible.'
           })
         }
       },
@@ -970,7 +997,7 @@ function SettingsPane() {
               className: 'text-xs font-semibold uppercase tracking-wider text-(--ui-text-tertiary)',
               children: 'Pane placement'
             }),
-            jsxs('div', { className: 'flex gap-2', children: placementButtons })
+            jsxs('div', { className: 'flex flex-wrap gap-2', children: placementButtons })
           ]
         }),
         jsx(SafeSeparator, {}),
@@ -1103,15 +1130,34 @@ function ProviderChip(props) {
 }
 
 // ---------------------------------------------------------------------------
-// Open helpers (workspace tab OR pane fallback)
+// Open helpers. Registered panes are the durable dock/floating surface; these
+// workspace tiles remain a feature-detected, closeable quick-preview path.
 // ---------------------------------------------------------------------------
+
+const workspaceClosers = {}
+
+function closeWorkspacePreview(id) {
+  const close = workspaceClosers[id]
+  delete workspaceClosers[id]
+  if (typeof close === 'function') {
+    try {
+      close()
+    } catch (_e) {
+      // A user may have closed it already; cleanup is intentionally best-effort.
+    }
+  }
+}
 
 function openNeonH() {
   if (typeof host.openWorkspace === 'function') {
     try {
-      host.openWorkspace('hermes-neon-h:mark', {
+      closeWorkspacePreview('mark')
+      workspaceClosers.mark = host.openWorkspace('hermes-neon-h:mark', {
         title: 'Neon H',
-        minWidth: 280,
+        minWidth: '280px',
+        onClose: function () {
+          delete workspaceClosers.mark
+        },
         render: function () {
           return jsx(MarkPane, {})
         }
@@ -1133,9 +1179,13 @@ function openNeonH() {
 function openNeonSettings() {
   if (typeof host.openWorkspace === 'function') {
     try {
-      host.openWorkspace('hermes-neon-h:settings', {
+      closeWorkspacePreview('settings')
+      workspaceClosers.settings = host.openWorkspace('hermes-neon-h:settings', {
         title: 'Neon H settings',
-        minWidth: 320,
+        minWidth: '320px',
+        onClose: function () {
+          delete workspaceClosers.settings
+        },
         render: function () {
           return jsx(SettingsPane, {})
         }
@@ -1164,15 +1214,14 @@ export default {
     const initial = loadSettings()
     $settings.set(initial)
 
-    const placement = initial.panePlacement === 'right' ? 'right' : 'bottom'
-    const paneData =
-      placement === 'bottom'
-        ? {
-            placement: 'bottom',
-            dock: { pane: 'workspace', pos: 'bottom' },
-            height: '200px'
-          }
-        : { placement: 'right', width: '260px' }
+    const paneData = paneDataFor(initial.panePlacement)
+    // `openWorkspace` tiles do not belong to ctx.register, so retire them on
+    // hot reload, disable, and removal instead of leaking stale views.
+    ctx.onDispose(function () {
+      closeWorkspacePreview('mark')
+      closeWorkspacePreview('settings')
+      _storage = null
+    })
 
     ctx.register({
       id: 'mark',

@@ -43,6 +43,30 @@ Then in Hermes Desktop: **⌘K → Reload desktop plugins**.
 
 Only `plugin.js` is required at runtime (mark is drawn procedurally). `assets/logo.png` is for install/readme branding only — not drawn on the canvas.
 
+## Placement and reload
+
+The **Neon H settings** pane offers five saved placements. A placement change is persisted immediately, but it changes the registered pane contribution, so it takes effect only after **⌘K → Reload desktop plugins**. Reopening a workspace preview alone does not move the registered pane.
+
+| Choice | Registered surface |
+|---|---|
+| `bottom` | Workspace dock edge, 200px high |
+| `top` | Workspace dock edge, 200px high |
+| `left` | Workspace dock edge, 260px wide |
+| `right` | Workspace dock edge, 260px wide |
+| `floating` | Native Hermes floating pane, anchored bottom-right at 180×180px; Hermes provides dragging/collapsing |
+
+Invalid persisted placement values are normalized to `bottom` on the next plugin registration. The command-palette workspace previews are intentionally separate temporary tiles; the plugin closes them during reload, disable, or removal so stale previews do not remain open.
+
+## Regression test
+
+The portable test uses only Node's built-in modules and a minimal SDK-shaped host; it does not require Hermes Desktop, credentials, or network access.
+
+```bash
+npm test
+```
+
+It verifies every placement, floating geometry, invalid-value normalization, and workspace-preview disposal.
+
 ## What you get (v1)
 
 | Surface | Behavior |

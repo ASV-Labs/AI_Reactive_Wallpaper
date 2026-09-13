@@ -4,6 +4,7 @@
  * v1.1.1 — Floating mark CSS-minimized toward a logo look (Hermes hard-limit).
  * v1.1.2 — Capture-visible breathe: higher healthy amp + wider canvas scale swing (rAF redraw).
  * v1.1.3 — DOM compositor pulse (wrap transform/opacity) for x11grab; settings version chip.
+ * v1.1.4 — overflow-visible on floating wrap so pulse is not clipped; harder inward DOM pulse + brightness.
  *
  * Install: copy this folder to $HERMES_HOME/desktop-plugins/hermes-neon-h/
  * (default HERMES_HOME=~/.hermes), then ⌘K → Reload desktop plugins.
@@ -118,7 +119,7 @@ const FLOAT_BASE_PX = 160
 const SCALE_MIN = 0.5
 const SCALE_MAX = 2.0
 const DEFAULT_SCALE = 1
-const PLUGIN_VERSION = '1.1.3'
+const PLUGIN_VERSION = '1.1.4'
 
 const DEFAULT_WATCHED = ['openai', 'anthropic', 'google', 'xai']
 
@@ -716,7 +717,7 @@ function NeonCanvas(props) {
 
     // Compositor-visible pulse (x11grab often misses pure canvas pixmap updates)
     wrap.style.transformOrigin = 'center center'
-    wrap.style.willChange = 'transform, opacity'
+    wrap.style.willChange = 'transform, opacity, filter'
 
     resize()
     const ro = new ResizeObserver(function () {
@@ -743,8 +744,9 @@ function NeonCanvas(props) {
           userScale: L.userScale
         })
         const b = typeof breath === 'number' ? breath : 0.5
-        wrap.style.transform = 'scale(' + (0.82 + 0.36 * b) + ')'
-        wrap.style.opacity = String(0.55 + 0.45 * b)
+        wrap.style.transform = 'scale(' + (0.55 + 0.55 * b) + ')'
+        wrap.style.opacity = String(0.4 + 0.6 * b)
+        wrap.style.filter = 'brightness(' + (0.65 + 0.7 * b) + ')'
       }
       rafRef.current = requestAnimationFrame(tick)
     }
@@ -755,6 +757,7 @@ function NeonCanvas(props) {
       ro.disconnect()
       wrap.style.transform = ''
       wrap.style.opacity = ''
+      wrap.style.filter = ''
       wrap.style.willChange = ''
     }
   }, [])
@@ -1004,7 +1007,7 @@ function MarkPane() {
     // Logo-first: empty Hermes title + CSS-minimized HUD chrome; invisible
     // full-pane header remains the SDK drag handle. Hide subtitle/badge.
     return jsxs('div', {
-      className: 'relative flex h-full w-full flex-col overflow-hidden bg-transparent',
+      className: 'relative flex h-full w-full flex-col overflow-visible bg-transparent',
       title: subtitle,
       children: [
         jsx('div', {

@@ -136,15 +136,17 @@ disposers.at(-1)()
 assert.ok(openCalls.every(call => call.closed), 'unload closes workspace previews')
 
 
-// v1.1.3: DOM compositor pulse + version chip + drawNeonH returns breath
+// v1.1.4: overflow-visible float wrap + harder inward DOM pulse + version chip
 {
   const src = fs.readFileSync(file, 'utf8')
-  assert.match(src, /PLUGIN_VERSION = '1\.1\.3'/)
+  assert.match(src, /PLUGIN_VERSION = '1\.1\.4'/)
   assert.match(src, /plugin ' \+ PLUGIN_VERSION/)
-  assert.match(src, /0\.82 \+ 0\.36 \* b/)
-  assert.match(src, /0\.55 \+ 0\.45 \* b/)
+  assert.match(src, /0\.55 \+ 0\.55 \* b/)
+  assert.match(src, /0\.4 \+ 0\.6 \* b/)
+  assert.match(src, /0\.65 \+ 0\.7 \* b/)
+  assert.match(src, /flex-col overflow-visible bg-transparent/)
   assert.match(src, /transformOrigin = 'center center'/)
-  assert.match(src, /willChange = 'transform, opacity'/)
+  assert.match(src, /willChange = 'transform, opacity, filter'/)
   assert.match(src, /getContext\('2d', \{ alpha: false, willReadFrequently: true \}/)
   assert.match(src, /return breath/)
   assert.match(src, /function drawNeonH\(/)
@@ -152,4 +154,4 @@ assert.ok(openCalls.every(call => call.closed), 'unload closes workspace preview
   assert.match(src, /function NeonCanvas\(/)
 }
 
-console.log('hermes-neon-h regression: floating default, blank mark title, logo CSS, scale geometry, placements, preview cleanup, v1.1.3 DOM pulse passed')
+console.log('hermes-neon-h regression: floating default, blank mark title, logo CSS, scale geometry, placements, preview cleanup, v1.1.4 overflow-visible pulse passed')

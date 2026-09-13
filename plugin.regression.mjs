@@ -70,10 +70,22 @@ function registerWith(storageMap) {
   assert.equal(mark.data.anchor, 'bottom-right')
   assert.equal(mark.data.width, '160px')
   assert.equal(mark.data.height, '160px')
-  assert.equal(mark.title, 'Neon H')
+  assert.equal(mark.title, '', 'mark title blank so Hermes header shows empty, not pane id')
   const settingsPane = registered.find(item => item.id === 'settings')
+  assert.equal(settingsPane.title, 'Neon H settings')
   assert.equal(settingsPane.data.placement, 'floating')
   assert.equal(disposers.length, 1)
+}
+
+// Source must ship the mark-float chrome CSS injector (Hermes has no frameless flag).
+{
+  const src = fs.readFileSync(file, 'utf8')
+  assert.match(src, /ensureMarkFloatChromeCss/)
+  assert.match(src, /MARK_FLOAT_PANE_ATTR = 'hermes-neon-h:mark'/)
+  assert.match(src, /\[data-floating-pane="/)
+  assert.match(src, /MARK_FLOAT_CSS_ID/)
+  assert.match(src, /title: ''/)
+  assert.doesNotMatch(src, /petdex/i)
 }
 
 // Scaled floating geometry
@@ -123,4 +135,4 @@ assert.deepEqual(openCalls.map(call => call.id), ['hermes-neon-h:mark', 'hermes-
 disposers.at(-1)()
 assert.ok(openCalls.every(call => call.closed), 'unload closes workspace previews')
 
-console.log('hermes-neon-h regression: floating default, scale geometry, placements, preview cleanup passed')
+console.log('hermes-neon-h regression: floating default, blank mark title, logo CSS, scale geometry, placements, preview cleanup passed')

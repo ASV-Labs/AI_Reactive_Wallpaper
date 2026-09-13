@@ -7,7 +7,7 @@
 
 Animated neon **H** mark that reacts to AI **provider** health (OpenAI, Anthropic/Claude, Google, xAI) plus local Hermes turn-busy. Opt-in (`defaultEnabled: false`).
 
-**v1.1.0 default:** a small **floating** in-window widget (drag by the Hermes pane header) — not a docked workspace pane. Place it wherever you want on the Hermes window.
+**v1.1.1 default:** a small **floating** in-window mark styled toward a **floating logo** (transparent chrome via CSS; drag on the mark itself) — not a docked workspace pane. Still an in-window Hermes float (not an OS pop-out).
 
 Listed on the ASV Labs public index: [asv-labs.github.io](https://asv-labs.github.io).
 
@@ -45,16 +45,17 @@ Then in Hermes Desktop: **⌘K → Reload desktop plugins**.
 
 Only `plugin.js` is required at runtime (mark is drawn procedurally). `assets/logo.png` is for install/readme branding only — not drawn on the canvas.
 
-## Floating default (v1.1.0)
+## Floating default (v1.1.1)
 
 | Behavior | Detail |
 |---|---|
 | Default placement | `floating`, anchor `bottom-right`, ~160×160px at scale 1.0 |
-| Drag | Hermes floating-pane **header** (title `Neon H`) — SDK contract |
-| Collapse / position | Persisted by Hermes for the pane id |
+| Drag | On the mark itself — Hermes header is CSS-invisibly stretched over the float (SDK still only binds drag to `<header>`) |
+| Title | Mark registers `title: ''` so the header text is blank (not the pane id) |
+| Collapse / position | Persisted by Hermes for the pane id; collapse button hidden on mark float via CSS |
 | Scale | `Alt` + mouse wheel over the mark (0.5–2.0); also in settings; stored in `ctx.storage` key `scale` |
-| Mark chrome | Sprite-first when floating (canvas only; subtitle/badge hidden) |
-| Settings | Second floating pane (or palette); edge docks remain optional |
+| Mark chrome | Logo-like: transparent background, no border/shadow/radius (CSS on `[data-floating-pane="hermes-neon-h:mark"]` only) |
+| Settings | Second floating pane keeps normal HUD chrome + title `Neon H settings` |
 
 Placement or floating pixel size from scale takes effect after **⌘K → Reload desktop plugins**. Live Alt+wheel updates the stored scale immediately and previews with a transform.
 
@@ -80,7 +81,7 @@ Covers floating default, scaled floating geometry, dock placements, invalid-valu
 
 | Surface | Behavior |
 |--------|----------|
-| Pane **Neon H** | Floating canvas mark by default; procedural neon H tinted by active provider + health |
+| Pane **Neon H** (blank float title) | Floating logo-like mark by default; procedural neon H tinted by active provider + health |
 | Pane **Neon H settings** | Colors (hex), animation mode, watched providers, **scale**, placement |
 | Status bar (right) | Chips for OpenAI / Anthropic / Google / xAI |
 | Palette | Open Neon H · Open Neon H settings |
@@ -120,7 +121,7 @@ Legal disk-plugin pane registration:
 ctx.register({
   id: 'mark',
   area: PANES_AREA,
-  title: 'Neon H', // drag header when floating
+  title: '', // blank header text; drag still via Hermes <header>
   data: { placement: 'floating', anchor: 'bottom-right', width: '160px', height: '160px' },
   render: MarkPane
 })
@@ -132,13 +133,18 @@ Imports: `@hermes/plugin-sdk`, `react`, `react/jsx-runtime` only. Shared `$setti
 
 **Works**
 
-- Floating in-window widget by default (draggable via Hermes header)
-- Alt+wheel scale + settings scale, persisted in plugin storage
+- Floating in-window mark by default, CSS-minimized toward a logo look
+- Drag on the mark (invisible Hermes header overlay); Alt+wheel scale + settings scale
 - Procedural neon H (no PNG blob on canvas)
 - Provider tint + busy pulse; status chips; settings
 
+**Hermes floating-pane hard limit (verified on tip `floating-panes.tsx`)**
+
+Hermes **always** renders floating panes as outer `HUD_SURFACE` (rounded border + background + shadow) plus a `<header>` that is the **only** drag handle (title + collapse). `PaneChrome` exposes placement/anchor/width/height for floats — there is **no** plugin data flag for frameless / `headerHidden` / transparent chrome. This plugin’s legal best-effort is: empty `title`, plus a one-time namespaced `<style>` targeting `[data-floating-pane="hermes-neon-h:mark"]` only (settings float stays normal). True frameless floats need a Hermes core change.
+
 **Not available to disk plugins**
 
+- True frameless / headerless floating panes (core must add the flag)
 - OS-wide always-on-top / Shift-click pet overlay pop-out (Hermes core Pets only)
 - Surviving Hermes minimize as a desktop pet, speech bubbles, etc.
 

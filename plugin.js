@@ -1,7 +1,7 @@
 /**
  * hermes-neon-h — Animated neon H mark for Hermes Desktop.
  * ASV Labs / Charles Bonetti. Opt-in disk plugin (defaultEnabled: false).
- * v1.1.0 — Pets-like floating in-window widget by default (not a docked pane).
+ * v1.1.1 — Floating mark CSS-minimized toward a logo look (Hermes hard-limit).
  *
  * Install: copy this folder to $HERMES_HOME/desktop-plugins/hermes-neon-h/
  * (default HERMES_HOME=~/.hermes), then ⌘K → Reload desktop plugins.
@@ -10,7 +10,9 @@
  *   @hermes/plugin-sdk, react, react/jsx-runtime
  *
  * Status polling is polite (~45–60s). Prefer statuspage JSON with CORS *.
- * Floating panes are dragged by the Hermes title/header chrome (SDK).
+ * Hermes ALWAYS draws floating panes with HUD_SURFACE + a header drag handle
+ * (no frameless / headerHidden plugin flag). We inject namespaced CSS so the
+ * mark float looks logo-like; drag still uses that invisible header overlay.
  */
 
 import {
@@ -331,6 +333,68 @@ function paneDataFor(placement, scale) {
     dock: { pane: 'workspace', pos: edge },
     ...(horizontal ? { width: '260px' } : { height: '200px' })
   }
+}
+
+const MARK_FLOAT_PANE_ATTR = 'hermes-neon-h:mark'
+const MARK_FLOAT_CSS_ID = 'hermes-neon-h-mark-float-chrome'
+
+/**
+ * Hermes tip floating-panes.tsx always wraps floats in HUD_SURFACE and a
+ * <header> drag handle. PaneChrome has no frameless/headerHidden for floats.
+ * Best-effort: blank title + CSS that targets ONLY our mark float id.
+ */
+function ensureMarkFloatChromeCss() {
+  if (typeof document === 'undefined') return
+  if (document.getElementById(MARK_FLOAT_CSS_ID)) return
+  const style = document.createElement('style')
+  style.id = MARK_FLOAT_CSS_ID
+  style.textContent =
+    '[data-floating-pane="' +
+    MARK_FLOAT_PANE_ATTR +
+    '"]{' +
+    'background:transparent!important;' +
+    'border:none!important;' +
+    'box-shadow:none!important;' +
+    'border-radius:0!important;' +
+    'overflow:hidden!important;' +
+    '}' +
+    '[data-floating-pane="' +
+    MARK_FLOAT_PANE_ATTR +
+    '"]>header{' +
+    'position:absolute!important;' +
+    'inset:0!important;' +
+    'z-index:2!important;' +
+    'opacity:0!important;' +
+    'cursor:grab!important;' +
+    'background:transparent!important;' +
+    'border:none!important;' +
+    'padding:0!important;' +
+    'margin:0!important;' +
+    '}' +
+    '[data-floating-pane="' +
+    MARK_FLOAT_PANE_ATTR +
+    '"]>header button,' +
+    '[data-floating-pane="' +
+    MARK_FLOAT_PANE_ATTR +
+    '"]>header [data-floating-no-drag]{display:none!important;}' +
+    '[data-floating-pane="' +
+    MARK_FLOAT_PANE_ATTR +
+    '"]>div{' +
+    'position:absolute!important;' +
+    'inset:0!important;' +
+    'width:100%!important;' +
+    'height:100%!important;' +
+    'min-height:0!important;' +
+    'overflow:hidden!important;' +
+    'flex:none!important;' +
+    '}'
+  document.head.appendChild(style)
+}
+
+function removeMarkFloatChromeCss() {
+  if (typeof document === 'undefined') return
+  const el = document.getElementById(MARK_FLOAT_CSS_ID)
+  if (el && el.parentNode) el.parentNode.removeChild(el)
 }
 
 function savePartial(key, value) {
@@ -872,6 +936,29 @@ function MarkPane() {
     }
   }, [])
 
+  // Invisible absolute header overlays the canvas (logo chrome CSS). Keep
+  // Alt+wheel working via capture when the pointer is over our mark float.
+  useEffect(
+    function () {
+      if (!floating) return undefined
+      ensureMarkFloatChromeCss()
+      const onWheel = function (e) {
+        if (!e.altKey) return
+        const t = e.target
+        if (!t || typeof t.closest !== 'function') return
+        if (!t.closest('[data-floating-pane="' + MARK_FLOAT_PANE_ATTR + '"]')) return
+        e.preventDefault()
+        e.stopPropagation()
+        onAltWheel(e.deltaY)
+      }
+      document.addEventListener('wheel', onWheel, { passive: false, capture: true })
+      return function () {
+        document.removeEventListener('wheel', onWheel, true)
+      }
+    },
+    [floating, onAltWheel]
+  )
+
   const canvas = jsx(NeonCanvas, {
     color: color,
     status: activeStatus,
@@ -885,10 +972,10 @@ function MarkPane() {
 
   if (floating) {
     const liveScale = scale / Math.max(0.01, mountScaleRef.current)
-    // Sprite-first: Hermes title bar ("Neon H") is the drag handle — hide
-    // subtitle / badge chrome so the floating card is mostly canvas.
+    // Logo-first: empty Hermes title + CSS-minimized HUD chrome; invisible
+    // full-pane header remains the SDK drag handle. Hide subtitle/badge.
     return jsxs('div', {
-      className: 'relative flex h-full w-full flex-col overflow-hidden bg-black',
+      className: 'relative flex h-full w-full flex-col overflow-hidden bg-transparent',
       title: subtitle,
       children: [
         jsx('div', {
@@ -1017,7 +1104,7 @@ function SettingsPane() {
             kind: 'info',
             message:
               'Placement saved as ' + p +
-              '. ⌘K → Reload desktop plugins to apply. Floating: drag by the pane header.'
+              '. ⌘K → Reload desktop plugins to apply. Floating: drag on the mark itself.'
           })
         }
       },
@@ -1115,7 +1202,7 @@ function SettingsPane() {
             jsx('p', {
               className: 'text-[0.65rem] text-(--ui-text-quaternary)',
               children:
-                'Default is floating (small in-window widget). Drag by the Hermes pane header. Edge docks are optional. Placement changes need ⌘K → Reload desktop plugins.'
+                'Default is floating (logo-like in-window mark). Drag on the mark itself. Edge docks are optional. Placement changes need ⌘K → Reload desktop plugins.'
             }),
             jsxs('div', { className: 'flex flex-wrap gap-2', children: placementButtons })
           ]
@@ -1378,17 +1465,21 @@ export default {
     const paneData = paneDataFor(initial.panePlacement, initial.scale)
     // `openWorkspace` tiles do not belong to ctx.register, so retire them on
     // hot reload, disable, and removal instead of leaking stale views.
+    ensureMarkFloatChromeCss()
+
     ctx.onDispose(function () {
       closeWorkspacePreview('mark')
       closeWorkspacePreview('settings')
+      removeMarkFloatChromeCss()
       _storage = null
     })
 
     ctx.register({
       id: 'mark',
       area: PANES_AREA,
-      // Short title doubles as the Hermes floating-pane drag header.
-      title: 'Neon H',
+      // Empty title: Hermes shows `pane.title ?? pane.id` — blank, not the id.
+      // Drag still works via the (CSS-invisible) full-pane header overlay.
+      title: '',
       data: paneData,
       render: function () {
         return jsx(MarkPane, {})

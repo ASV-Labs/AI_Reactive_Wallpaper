@@ -7,7 +7,7 @@
 
 Animated neon **H** mark that reacts to AI **provider** health (OpenAI, Anthropic/Claude, Google, xAI) plus local Hermes turn-busy. Opt-in (`defaultEnabled: false`).
 
-**v1.1.2 default:** a small **floating** in-window mark styled toward a **floating logo** (transparent chrome via CSS; drag on the mark itself) — not a docked workspace pane. Still an in-window Hermes float (not an OS pop-out).
+**v1.1.3 default:** a small **floating** in-window mark styled toward a **floating logo** (transparent chrome via CSS; drag on the mark itself) — not a docked workspace pane. Still an in-window Hermes float (not an OS pop-out).
 
 Listed on the ASV Labs public index: [asv-labs.github.io](https://asv-labs.github.io).
 
@@ -45,7 +45,21 @@ Then in Hermes Desktop: **⌘K → Reload desktop plugins**.
 
 Only `plugin.js` is required at runtime (mark is drawn procedurally). `assets/logo.png` is for install/readme branding only — not drawn on the canvas.
 
-## Floating default (v1.1.2)
+## Reload path (CoS / local)
+
+```bash
+export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+# default plugins dir
+cp plugin.js "$HERMES_HOME/desktop-plugins/hermes-neon-h/plugin.js"
+# profile desktop-plugins (e.g. vision) when present
+cp plugin.js "$HERMES_HOME/profiles/vision/desktop-plugins/hermes-neon-h/plugin.js"
+```
+
+Then Hermes Desktop: **⌘K → Reload desktop plugins**. Settings → **Animation = Breathe**. Confirm the settings footer chip reads **`plugin 1.1.3`** (proves the new file is bound).
+
+**x11grab note:** pure canvas 2D rAF may not damage the X pixmap under `--disable-gpu`. v1.1.3 adds a DOM `transform`/`opacity` pulse on the mark wrap so the compositor (and grab) sees motion. Use [`demo/neon-h-breathe.gif`](./demo/neon-h-breathe.gif) for an offline X post asset.
+
+## Floating default (v1.1.3)
 
 | Behavior | Detail |
 |---|---|
@@ -91,7 +105,9 @@ Covers floating default, scaled floating geometry, dock placements, invalid-valu
 
 `breathe` · `static` · `pulse-on-busy` · `outage-flash`
 
-**Breathe** is a canvas `requestAnimationFrame` redraw in `drawNeonH` (not CSS opacity / not GPU-only). Demo defaults use a capture-visible amp (`healthy` amp `0.48`, scale `base*(0.72+0.38*breath)`) so size clearly pulses on screen recordings (e.g. x11grab).
+**Breathe** is a canvas `requestAnimationFrame` redraw in `drawNeonH` (neon look preserved) **plus** a DOM compositor pulse on the wrap (`transform: scale(0.82+0.36*breath)` and opacity) so motion is visible to x11grab even when `--disable-gpu` leaves the X pixmap static. Canvas-only rAF can update pixels without damaging the grabbed surface — 1.1.3 fixes that for CoS refilm.
+
+Offline demo (no Hermes): [`demo/neon-h-breathe.gif`](./demo/neon-h-breathe.gif) (~3s loop, 160×160). Regenerate with `npm run demo:gif` (needs `canvas` + `ffmpeg`).
 
 ### Visual mapping
 
@@ -138,6 +154,7 @@ Imports: `@hermes/plugin-sdk`, `react`, `react/jsx-runtime` only. Shared `$setti
 - Floating in-window mark by default, CSS-minimized toward a logo look
 - Drag on the mark (invisible Hermes header overlay); Alt+wheel scale + settings scale
 - Procedural neon H (no PNG blob on canvas)
+- DOM compositor pulse (transform/opacity) for capture-visible breathe
 - Provider tint + busy pulse; status chips; settings
 
 **Hermes floating-pane hard limit (verified on tip `floating-panes.tsx`)**
@@ -168,12 +185,16 @@ Hermes **always** renders floating panes as outer `HUD_SURFACE` (rounded border 
 
 ```
 AI_Reactive_Wallpaper/
-├── plugin.js              # disk plugin (runtime id: hermes-neon-h)
-├── plugin.regression.mjs  # portable registration tests
+├── plugin.js                 # disk plugin (runtime id: hermes-neon-h)
+├── plugin.regression.mjs     # portable registration tests
+├── scripts/render-demo-gif.mjs
+├── demo/
+│   ├── neon-h-breathe.gif    # offline X / marketing breathe loop
+│   └── neon-h-breathe.webm
 ├── assets/
-│   └── logo.png           # ASV / Charles neon H mark
+│   └── logo.png              # ASV / Charles neon H mark
 ├── README.md
-├── LICENSE                # MIT
+├── LICENSE                   # MIT
 ├── package.json
 └── .gitignore
 ```

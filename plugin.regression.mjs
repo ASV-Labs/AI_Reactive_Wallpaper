@@ -135,4 +135,21 @@ assert.deepEqual(openCalls.map(call => call.id), ['hermes-neon-h:mark', 'hermes-
 disposers.at(-1)()
 assert.ok(openCalls.every(call => call.closed), 'unload closes workspace previews')
 
-console.log('hermes-neon-h regression: floating default, blank mark title, logo CSS, scale geometry, placements, preview cleanup passed')
+
+// v1.1.3: DOM compositor pulse + version chip + drawNeonH returns breath
+{
+  const src = fs.readFileSync(file, 'utf8')
+  assert.match(src, /PLUGIN_VERSION = '1\.1\.3'/)
+  assert.match(src, /plugin ' \+ PLUGIN_VERSION/)
+  assert.match(src, /0\.82 \+ 0\.36 \* b/)
+  assert.match(src, /0\.55 \+ 0\.45 \* b/)
+  assert.match(src, /transformOrigin = 'center center'/)
+  assert.match(src, /willChange = 'transform, opacity'/)
+  assert.match(src, /getContext\('2d', \{ alpha: false, willReadFrequently: true \}/)
+  assert.match(src, /return breath/)
+  assert.match(src, /function drawNeonH\(/)
+  assert.match(src, /function MarkPane\(/)
+  assert.match(src, /function NeonCanvas\(/)
+}
+
+console.log('hermes-neon-h regression: floating default, blank mark title, logo CSS, scale geometry, placements, preview cleanup, v1.1.3 DOM pulse passed')

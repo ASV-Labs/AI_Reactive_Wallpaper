@@ -40,3 +40,7 @@ temp/
 
 # rebuild helper (logo is embedded in plugin.js)
 assets/logo.b64.txt
+
+# Demo render scratch
+demo/.frames/
+

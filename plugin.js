@@ -3,6 +3,7 @@
  * ASV Labs / Charles Bonetti. Opt-in disk plugin (defaultEnabled: false).
  * v1.1.1 — Floating mark CSS-minimized toward a logo look (Hermes hard-limit).
  * v1.1.2 — Capture-visible breathe: higher healthy amp + wider canvas scale swing (rAF redraw).
+ * v1.1.3 — DOM compositor pulse (wrap transform/opacity) for x11grab; settings version chip.
  *
  * Install: copy this folder to $HERMES_HOME/desktop-plugins/hermes-neon-h/
  * (default HERMES_HOME=~/.hermes), then ⌘K → Reload desktop plugins.
@@ -117,6 +118,7 @@ const FLOAT_BASE_PX = 160
 const SCALE_MIN = 0.5
 const SCALE_MAX = 2.0
 const DEFAULT_SCALE = 1
+const PLUGIN_VERSION = '1.1.3'
 
 const DEFAULT_WATCHED = ['openai', 'anthropic', 'google', 'xai']
 
@@ -649,6 +651,8 @@ function drawNeonH(ctx2d, w, h, opts) {
     ctx2d.stroke()
     ctx2d.restore()
   }
+
+  return breath
 }
 
 function NeonCanvas(props) {
@@ -683,6 +687,19 @@ function NeonCanvas(props) {
     const canvas = canvasRef.current
     if (!wrap || !canvas) return undefined
 
+    let ctx2d = null
+    const ensureCtx = function (dpr) {
+      if (!ctx2d) {
+        try {
+          ctx2d = canvas.getContext('2d', { alpha: false, willReadFrequently: true })
+        } catch (e) {
+          ctx2d = canvas.getContext('2d')
+        }
+      }
+      if (ctx2d && dpr != null) ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0)
+      return ctx2d
+    }
+
     const resize = function () {
       const rect = wrap.getBoundingClientRect()
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -692,9 +709,14 @@ function NeonCanvas(props) {
       canvas.height = Math.floor(cssH * dpr)
       canvas.style.width = cssW + 'px'
       canvas.style.height = cssH + 'px'
-      const c = canvas.getContext('2d')
-      if (c) c.setTransform(dpr, 0, 0, dpr, 0, 0)
+      // Recreate after buffer resize so alpha:false options stick
+      ctx2d = null
+      ensureCtx(dpr)
     }
+
+    // Compositor-visible pulse (x11grab often misses pure canvas pixmap updates)
+    wrap.style.transformOrigin = 'center center'
+    wrap.style.willChange = 'transform, opacity'
 
     resize()
     const ro = new ResizeObserver(function () {
@@ -704,14 +726,14 @@ function NeonCanvas(props) {
 
     startRef.current = performance.now()
     const tick = function (now) {
-      const c = canvas.getContext('2d')
+      const c = ensureCtx(null)
       if (c) {
         const L = latestRef.current
         const tSec = (now - startRef.current) / 1000
         const pulse = pulseParams(L.status, L.animMode, L.busy)
         const cssW = canvas.clientWidth || 1
         const cssH = canvas.clientHeight || 1
-        drawNeonH(c, cssW, cssH, {
+        const breath = drawNeonH(c, cssW, cssH, {
           color: L.color,
           amp: pulse.amp,
           speed: pulse.speed,
@@ -720,6 +742,9 @@ function NeonCanvas(props) {
           busy: L.busy,
           userScale: L.userScale
         })
+        const b = typeof breath === 'number' ? breath : 0.5
+        wrap.style.transform = 'scale(' + (0.82 + 0.36 * b) + ')'
+        wrap.style.opacity = String(0.55 + 0.45 * b)
       }
       rafRef.current = requestAnimationFrame(tick)
     }
@@ -728,6 +753,9 @@ function NeonCanvas(props) {
     return function () {
       cancelAnimationFrame(rafRef.current)
       ro.disconnect()
+      wrap.style.transform = ''
+      wrap.style.opacity = ''
+      wrap.style.willChange = ''
     }
   }, [])
 
@@ -1296,6 +1324,10 @@ function SettingsPane() {
           ]
         }),
         jsx(SafeSeparator, {}),
+        jsx('p', {
+          className: 'text-[0.6rem] font-mono text-(--ui-text-quaternary)',
+          children: 'plugin ' + PLUGIN_VERSION
+        }),
         jsx('p', {
           className: 'text-[0.65rem] text-(--ui-text-quaternary)',
           children:

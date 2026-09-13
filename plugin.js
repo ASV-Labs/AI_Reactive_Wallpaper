@@ -2,6 +2,7 @@
  * hermes-neon-h — Animated neon H mark for Hermes Desktop.
  * ASV Labs / Charles Bonetti. Opt-in disk plugin (defaultEnabled: false).
  * v1.1.1 — Floating mark CSS-minimized toward a logo look (Hermes hard-limit).
+ * v1.1.2 — Capture-visible breathe: higher healthy amp + wider canvas scale swing (rAF redraw).
  *
  * Install: copy this folder to $HERMES_HOME/desktop-plugins/hermes-neon-h/
  * (default HERMES_HOME=~/.hermes), then ⌘K → Reload desktop plugins.
@@ -448,18 +449,18 @@ function pulseParams(status, animMode, busy) {
   } else {
     // breathe (default)
     if (status === 'major') {
-      amp = 0.55
-      speed = 3.6
+      amp = 0.58
+      speed = 3.7
       flash = true
     } else if (status === 'degraded') {
-      amp = 0.32
-      speed = 2.1
+      amp = 0.36
+      speed = 2.2
     } else if (status === 'unknown' || status === 'loading') {
-      amp = 0.14
-      speed = 0.75
+      amp = 0.32
+      speed = 0.95
     } else {
-      amp = 0.22
-      speed = 1.05
+      amp = 0.48
+      speed = 1.25
     }
   }
 
@@ -570,10 +571,10 @@ function drawNeonH(ctx2d, w, h, opts) {
   if (busy) breath = Math.min(1.2, breath * 1.1)
 
   // Visible per-frame changes: scale + glow radius + alpha
-  const scale = base * (0.88 + 0.18 * breath)
+  const scale = base * (0.72 + 0.38 * breath)
   const glowBlur = 10 + 48 * amp * breath + (busy ? 18 : 0)
   const coreAlpha = 0.55 + 0.45 * breath
-  const glowAlpha = 0.25 + 0.55 * breath
+  const glowAlpha = 0.22 + 0.68 * breath
 
   ctx2d.clearRect(0, 0, w, h)
   ctx2d.fillStyle = '#000000'

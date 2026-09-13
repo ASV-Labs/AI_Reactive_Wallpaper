@@ -1,6 +1,6 @@
 {
   "name": "@asv-labs/ai-reactive-wallpaper",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Hermes Desktop disk plugin (id: hermes-neon-h): floating neon H mark (logo-like in-window float by default; Hermes chrome CSS-minimized) that reacts to AI provider health and local Hermes activity. Public repo ASV-Labs/AI_Reactive_Wallpaper.",
   "license": "MIT",
   "private": false,

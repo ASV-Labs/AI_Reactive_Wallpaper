@@ -7,7 +7,7 @@
 
 Animated neon **H** mark that reacts to AI **provider** health (OpenAI, Anthropic/Claude, Google, xAI) plus local Hermes turn-busy. Opt-in (`defaultEnabled: false`).
 
-**v1.1.1 default:** a small **floating** in-window mark styled toward a **floating logo** (transparent chrome via CSS; drag on the mark itself) — not a docked workspace pane. Still an in-window Hermes float (not an OS pop-out).
+**v1.1.2 default:** a small **floating** in-window mark styled toward a **floating logo** (transparent chrome via CSS; drag on the mark itself) — not a docked workspace pane. Still an in-window Hermes float (not an OS pop-out).
 
 Listed on the ASV Labs public index: [asv-labs.github.io](https://asv-labs.github.io).
 
@@ -45,7 +45,7 @@ Then in Hermes Desktop: **⌘K → Reload desktop plugins**.
 
 Only `plugin.js` is required at runtime (mark is drawn procedurally). `assets/logo.png` is for install/readme branding only — not drawn on the canvas.
 
-## Floating default (v1.1.1)
+## Floating default (v1.1.2)
 
 | Behavior | Detail |
 |---|---|
@@ -90,6 +90,8 @@ Covers floating default, scaled floating geometry, dock placements, invalid-valu
 ### Animation modes
 
 `breathe` · `static` · `pulse-on-busy` · `outage-flash`
+
+**Breathe** is a canvas `requestAnimationFrame` redraw in `drawNeonH` (not CSS opacity / not GPU-only). Demo defaults use a capture-visible amp (`healthy` amp `0.48`, scale `base*(0.72+0.38*breath)`) so size clearly pulses on screen recordings (e.g. x11grab).
 
 ### Visual mapping
 

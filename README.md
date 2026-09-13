@@ -7,6 +7,8 @@
 
 Animated neon **H** mark that reacts to AI **provider** health (OpenAI, Anthropic/Claude, Google, xAI) plus local Hermes turn-busy. Opt-in (`defaultEnabled: false`).
 
+**v1.1.0 default:** a small **floating** in-window widget (drag by the Hermes pane header) — not a docked workspace pane. Place it wherever you want on the Hermes window.
+
 Listed on the ASV Labs public index: [asv-labs.github.io](https://asv-labs.github.io).
 
 Inspiration: Erik Johansson’s Omarchy reactive wallpaper — shipped here as a Hermes Desktop plugin pane, not an OS wallpaper daemon.
@@ -43,36 +45,43 @@ Then in Hermes Desktop: **⌘K → Reload desktop plugins**.
 
 Only `plugin.js` is required at runtime (mark is drawn procedurally). `assets/logo.png` is for install/readme branding only — not drawn on the canvas.
 
-## Placement and reload
+## Floating default (v1.1.0)
 
-The **Neon H settings** pane offers five saved placements. A placement change is persisted immediately, but it changes the registered pane contribution, so it takes effect only after **⌘K → Reload desktop plugins**. Reopening a workspace preview alone does not move the registered pane.
+| Behavior | Detail |
+|---|---|
+| Default placement | `floating`, anchor `bottom-right`, ~160×160px at scale 1.0 |
+| Drag | Hermes floating-pane **header** (title `Neon H`) — SDK contract |
+| Collapse / position | Persisted by Hermes for the pane id |
+| Scale | `Alt` + mouse wheel over the mark (0.5–2.0); also in settings; stored in `ctx.storage` key `scale` |
+| Mark chrome | Sprite-first when floating (canvas only; subtitle/badge hidden) |
+| Settings | Second floating pane (or palette); edge docks remain optional |
+
+Placement or floating pixel size from scale takes effect after **⌘K → Reload desktop plugins**. Live Alt+wheel updates the stored scale immediately and previews with a transform.
 
 | Choice | Registered surface |
 |---|---|
-| `bottom` | Workspace dock edge, 200px high |
-| `top` | Workspace dock edge, 200px high |
-| `left` | Workspace dock edge, 260px wide |
-| `right` | Workspace dock edge, 260px wide |
-| `floating` | Native Hermes floating pane, anchored bottom-right at 180×180px; Hermes provides dragging/collapsing |
+| `floating` (default) | Native Hermes floating pane; draggable / collapsible |
+| `bottom` / `top` | Workspace dock edge, 200px high |
+| `left` / `right` | Workspace dock edge, 260px wide |
 
-Invalid persisted placement values are normalized to `bottom` on the next plugin registration. The command-palette workspace previews are intentionally separate temporary tiles; the plugin closes them during reload, disable, or removal so stale previews do not remain open.
+Invalid persisted placement values normalize to `floating`. Command-palette workspace previews are temporary tiles; the plugin closes them on reload, disable, or removal.
 
 ## Regression test
 
-The portable test uses only Node's built-in modules and a minimal SDK-shaped host; it does not require Hermes Desktop, credentials, or network access.
+Portable Node test (no Hermes Desktop, credentials, or network):
 
 ```bash
 npm test
 ```
 
-It verifies every placement, floating geometry, invalid-value normalization, and workspace-preview disposal.
+Covers floating default, scaled floating geometry, dock placements, invalid-value normalization, and workspace-preview disposal.
 
-## What you get (v1)
+## What you get
 
 | Surface | Behavior |
 |--------|----------|
-| Pane **Neon H** | Canvas on black; **procedural** neon H tinted by active provider + health |
-| Pane **Neon H settings** | Colors (hex), animation mode, watched providers, placement |
+| Pane **Neon H** | Floating canvas mark by default; procedural neon H tinted by active provider + health |
+| Pane **Neon H settings** | Colors (hex), animation mode, watched providers, **scale**, placement |
 | Status bar (right) | Chips for OpenAI / Anthropic / Google / xAI |
 | Palette | Open Neon H · Open Neon H settings |
 | Optional | `host.openWorkspace` when available; otherwise pane fallback |
@@ -101,36 +110,49 @@ Default provider colors: OpenAI `#10a37f`, Anthropic `#d4a27f`, Google `#4285f4`
 
 Poll interval ~50s (polite). Active provider is inferred from `host.state.model` / `host.state.profile` hints.
 
-Settings persist via `ctx.storage` (plugin-scoped).
+Settings persist via `ctx.storage` (plugin-scoped). Floating pane **position** is persisted by Hermes.
 
-## What works / blockers (v1)
+## SDK surface
+
+Legal disk-plugin pane registration:
+
+```js
+ctx.register({
+  id: 'mark',
+  area: PANES_AREA,
+  title: 'Neon H', // drag header when floating
+  data: { placement: 'floating', anchor: 'bottom-right', width: '160px', height: '160px' },
+  render: MarkPane
+})
+```
+
+Imports: `@hermes/plugin-sdk`, `react`, `react/jsx-runtime` only. Shared `$settings` atom for live settings.
+
+## Honesty / limits
 
 **Works**
 
-- Disk ESM plugin with only allowed imports (`@hermes/plugin-sdk`, `react`, `react/jsx-runtime`)
-- Canvas pane + ResizeObserver sizing
-- Status-bar chips + settings + palette
-- Provider-tinted neon (intentional product colors on canvas; UI chrome uses theme vars)
+- Floating in-window widget by default (draggable via Hermes header)
+- Alt+wheel scale + settings scale, persisted in plugin storage
+- Procedural neon H (no PNG blob on canvas)
+- Provider tint + busy pulse; status chips; settings
 
-**v1.0.1 fixes**
+**Not available to disk plugins**
 
-- Static PNG blob: canvas no longer `drawImage`s the opaque-black logo + `source-atop` fill; draws a procedural vector neon H with visible breathe/pulse/flash glow+scale.
-- Shared settings: `atom` + `useValue` `$settings` store so SettingsPane updates live-propagate to MarkPane and status chips (was per-component `useState`).
-- GCP open incidents: based on missing/future `end`, not missing `status` forever.
-- Status chips surface loading / operational / degraded / major / unknown+error.
+- OS-wide always-on-top / Shift-click pet overlay pop-out (Hermes core Pets only)
+- Surviving Hermes minimize as a desktop pet, speech bubbles, etc.
 
-**Blockers / honesty**
+**Other blockers**
 
-- **No wallpaper API** — this is a desktop plugin pane, not Omarchy/OS wallpaper
-- **CORS** — some status endpoints or HTML fallbacks may fail in-renderer; unknown ≠ operational
+- **No wallpaper API** — desktop plugin pane, not Omarchy/OS wallpaper
+- **CORS** — some status endpoints may fail in-renderer; unknown ≠ operational
 - **Google = GCP proxy** — open cloud incidents, not Gemini-only consumer status
 - **xAI** — JSON may 404/CORS; HTML sniff is best-effort; else `unknown`
-- **Optional SDK widgets** — Badge/Tip/Switch/ScrollArea feature-detected; plain HTML + `title=` fallbacks
 
 ## Out of scope
 
 - Omarchy / OS wallpaper hacks  
-- Forking Hermes core for chat wallpaper  
+- Forking Hermes core  
 - Social posts / marketing automation  
 - Secrets, `.env`, or machine-private paths  
 
@@ -138,11 +160,12 @@ Settings persist via `ctx.storage` (plugin-scoped).
 
 ```
 AI_Reactive_Wallpaper/
-├── plugin.js           # disk plugin (runtime id: hermes-neon-h)
+├── plugin.js              # disk plugin (runtime id: hermes-neon-h)
+├── plugin.regression.mjs  # portable registration tests
 ├── assets/
-│   └── logo.png        # ASV / Charles neon H mark
+│   └── logo.png           # ASV / Charles neon H mark
 ├── README.md
-├── LICENSE             # MIT
+├── LICENSE                # MIT
 ├── package.json
 └── .gitignore
 ```

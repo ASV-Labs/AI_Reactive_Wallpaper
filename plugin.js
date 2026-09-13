@@ -1,7 +1,7 @@
 /**
  * hermes-neon-h — Animated neon H mark for Hermes Desktop.
  * ASV Labs / Charles Bonetti. Opt-in disk plugin (defaultEnabled: false).
- * v1.0.1 — procedural neon H (no opaque PNG blob) + shared settings atom.
+ * v1.1.0 — Pets-like floating in-window widget by default (not a docked pane).
  *
  * Install: copy this folder to $HERMES_HOME/desktop-plugins/hermes-neon-h/
  * (default HERMES_HOME=~/.hermes), then ⌘K → Reload desktop plugins.
@@ -10,6 +10,7 @@
  *   @hermes/plugin-sdk, react, react/jsx-runtime
  *
  * Status polling is polite (~45–60s). Prefer statuspage JSON with CORS *.
+ * Floating panes are dragged by the Hermes title/header chrome (SDK).
  */
 
 import {
@@ -30,7 +31,7 @@ import {
   STATUSBAR_AREAS,
   PANES_AREA
 } from '@hermes/plugin-sdk'
-import { useEffect, useRef, useCallback, useMemo } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 const ID = 'hermes-neon-h'
@@ -100,12 +101,19 @@ const STORAGE_KEYS = {
   colors: 'colors',
   animMode: 'animMode',
   watched: 'watched',
-  panePlacement: 'panePlacement'
+  panePlacement: 'panePlacement',
+  scale: 'scale'
 }
 
 // Four edge docks use the workspace dock contract. `floating` is Hermes'
 // draggable in-window pane surface; it is not a CSS overlay or a top placement.
-const PANE_PLACEMENTS = ['bottom', 'top', 'left', 'right', 'floating']
+// Default product surface is floating (small sprite-like mark), not a dock edge.
+const PANE_PLACEMENTS = ['floating', 'bottom', 'top', 'left', 'right']
+const DEFAULT_PLACEMENT = 'floating'
+const FLOAT_BASE_PX = 160
+const SCALE_MIN = 0.5
+const SCALE_MAX = 2.0
+const DEFAULT_SCALE = 1
 
 const DEFAULT_WATCHED = ['openai', 'anthropic', 'google', 'xai']
 
@@ -116,7 +124,8 @@ const $settings = atom({
   colors: Object.assign({}, DEFAULT_COLORS),
   animMode: 'breathe',
   watched: DEFAULT_WATCHED.slice(),
-  panePlacement: 'bottom'
+  panePlacement: DEFAULT_PLACEMENT,
+  scale: DEFAULT_SCALE
 })
 
 // ---------------------------------------------------------------------------
@@ -273,24 +282,44 @@ function parseProviderHint(model, profile) {
   return null
 }
 
+function clampScale(value) {
+  const n = typeof value === 'number' ? value : parseFloat(value)
+  if (!Number.isFinite(n)) return DEFAULT_SCALE
+  return Math.min(SCALE_MAX, Math.max(SCALE_MIN, Math.round(n * 100) / 100))
+}
+
+function floatSizePx(scale) {
+  return Math.max(80, Math.round(FLOAT_BASE_PX * clampScale(scale)))
+}
+
 function loadSettings() {
   const storedColors = _storage ? _storage.get(STORAGE_KEYS.colors, null) : null
   const colors = Object.assign({}, DEFAULT_COLORS, storedColors || {})
   const animMode = (_storage && _storage.get(STORAGE_KEYS.animMode, 'breathe')) || 'breathe'
   const watched = (_storage && _storage.get(STORAGE_KEYS.watched, DEFAULT_WATCHED)) || DEFAULT_WATCHED
   const storedPlacement =
-    (_storage && _storage.get(STORAGE_KEYS.panePlacement, 'bottom')) || 'bottom'
-  const panePlacement = PANE_PLACEMENTS.indexOf(storedPlacement) !== -1 ? storedPlacement : 'bottom'
-  return { colors: colors, animMode: animMode, watched: watched, panePlacement: panePlacement }
+    (_storage && _storage.get(STORAGE_KEYS.panePlacement, DEFAULT_PLACEMENT)) || DEFAULT_PLACEMENT
+  const panePlacement =
+    PANE_PLACEMENTS.indexOf(storedPlacement) !== -1 ? storedPlacement : DEFAULT_PLACEMENT
+  const storedScale = _storage ? _storage.get(STORAGE_KEYS.scale, DEFAULT_SCALE) : DEFAULT_SCALE
+  const scale = clampScale(storedScale)
+  return {
+    colors: colors,
+    animMode: animMode,
+    watched: watched,
+    panePlacement: panePlacement,
+    scale: scale
+  }
 }
 
-function paneDataFor(placement) {
+function paneDataFor(placement, scale) {
   if (placement === 'floating') {
+    const px = floatSizePx(scale == null ? DEFAULT_SCALE : scale)
     return {
       placement: 'floating',
       anchor: 'bottom-right',
-      width: '180px',
-      height: '180px'
+      width: px + 'px',
+      height: px + 'px'
     }
   }
   // Do not use `placement: 'top'`: top is a dock position, while `main` +
@@ -462,10 +491,11 @@ function drawNeonH(ctx2d, w, h, opts) {
   const flash = opts.flash
   const t = opts.t
   const busy = opts.busy
+  const userScale = clampScale(opts.userScale == null ? 1 : opts.userScale)
   const rgb = hexToRgb(color)
   const cx = w / 2
   const cy = h / 2
-  const base = Math.min(w, h) * 0.38
+  const base = Math.min(w, h) * 0.38 * userScale
 
   const phase = speed > 0 ? (Math.sin(t * speed * 2.2) + 1) / 2 : 0.5
   let breath = 1 - amp + amp * phase
@@ -566,7 +596,8 @@ function NeonCanvas(props) {
     color: props.color,
     status: props.status,
     animMode: props.animMode,
-    busy: props.busy
+    busy: props.busy,
+    userScale: props.userScale == null ? 1 : props.userScale
   })
 
   useEffect(
@@ -575,10 +606,11 @@ function NeonCanvas(props) {
         color: props.color,
         status: props.status,
         animMode: props.animMode,
-        busy: props.busy
+        busy: props.busy,
+        userScale: props.userScale == null ? 1 : props.userScale
       }
     },
-    [props.color, props.status, props.animMode, props.busy]
+    [props.color, props.status, props.animMode, props.busy, props.userScale]
   )
 
   useEffect(function () {
@@ -620,7 +652,8 @@ function NeonCanvas(props) {
           speed: pulse.speed,
           flash: pulse.flash,
           t: tSec,
-          busy: L.busy
+          busy: L.busy,
+          userScale: L.userScale
         })
       }
       rafRef.current = requestAnimationFrame(tick)
@@ -633,9 +666,29 @@ function NeonCanvas(props) {
     }
   }, [])
 
+  useEffect(
+    function () {
+      const wrap = wrapRef.current
+      if (!wrap || typeof props.onAltWheel !== 'function') return undefined
+      const onWheel = function (e) {
+        if (!e.altKey) return
+        e.preventDefault()
+        e.stopPropagation()
+        props.onAltWheel(e.deltaY)
+      }
+      wrap.addEventListener('wheel', onWheel, { passive: false })
+      return function () {
+        wrap.removeEventListener('wheel', onWheel)
+      }
+    },
+    [props.onAltWheel]
+  )
+
+  const minClass = props.compact ? 'min-h-0' : 'min-h-[120px]'
   return jsx('div', {
     ref: wrapRef,
-    className: 'h-full w-full min-h-[120px] bg-black',
+    className: cn('h-full w-full bg-black', minClass),
+    title: props.wheelHint || undefined,
     children: jsx('canvas', {
       ref: canvasRef,
       className: 'block h-full w-full',
@@ -676,6 +729,10 @@ function usePluginSettings() {
     if (patch.animMode != null) savePartial(STORAGE_KEYS.animMode, next.animMode)
     if (patch.watched) savePartial(STORAGE_KEYS.watched, next.watched)
     if (patch.panePlacement != null) savePartial(STORAGE_KEYS.panePlacement, next.panePlacement)
+    if (patch.scale != null) {
+      next.scale = clampScale(patch.scale)
+      savePartial(STORAGE_KEYS.scale, next.scale)
+    }
     $settings.set(next)
   }, [settings])
 
@@ -763,7 +820,11 @@ function MarkPane() {
   const busy = useValue(host.state.busy)
   const hook = usePluginSettings()
   const settings = hook.settings
+  const update = hook.update
   const query = useProviderStatuses(settings.watched)
+  const floating = settings.panePlacement === 'floating'
+  const [scaleFlash, setScaleFlash] = useState(null)
+  const flashTimer = useRef(0)
 
   const activeId = useMemo(
     function () {
@@ -783,6 +844,68 @@ function MarkPane() {
   const errBit =
     row && row.error && row.description ? ' · ' + row.description : query.isError ? ' · error' : ''
   const subtitle = label + ' · ' + activeStatus + (busy ? ' · busy' : '') + errBit
+  const scale = clampScale(settings.scale == null ? DEFAULT_SCALE : settings.scale)
+  // Floating pane chrome size is fixed at register (FLOAT_BASE*scale). Live
+  // Alt+wheel updates storage + a CSS transform relative to the mount scale;
+  // reload applies the new width/height. Docked panes use canvas userScale.
+  const mountScaleRef = useRef(scale)
+
+  const onAltWheel = useCallback(
+    function (deltaY) {
+      const step = deltaY > 0 ? -0.05 : 0.05
+      const next = clampScale(scale + step)
+      if (next === scale) return
+      update({ scale: next })
+      setScaleFlash(Math.round(next * 100) + '%')
+      if (flashTimer.current) clearTimeout(flashTimer.current)
+      flashTimer.current = setTimeout(function () {
+        setScaleFlash(null)
+      }, 900)
+      if (typeof haptic === 'function') haptic('tap')
+    },
+    [scale, update]
+  )
+
+  useEffect(function () {
+    return function () {
+      if (flashTimer.current) clearTimeout(flashTimer.current)
+    }
+  }, [])
+
+  const canvas = jsx(NeonCanvas, {
+    color: color,
+    status: activeStatus,
+    animMode: settings.animMode,
+    busy: !!busy,
+    userScale: floating ? 1 : scale,
+    compact: floating,
+    wheelHint: 'Alt+scroll to scale (persisted; reload applies floating pane size)',
+    onAltWheel: onAltWheel
+  })
+
+  if (floating) {
+    const liveScale = scale / Math.max(0.01, mountScaleRef.current)
+    // Sprite-first: Hermes title bar ("Neon H") is the drag handle — hide
+    // subtitle / badge chrome so the floating card is mostly canvas.
+    return jsxs('div', {
+      className: 'relative flex h-full w-full flex-col overflow-hidden bg-black',
+      title: subtitle,
+      children: [
+        jsx('div', {
+          className: 'min-h-0 flex-1 origin-center',
+          style: liveScale === 1 ? undefined : { transform: 'scale(' + liveScale + ')' },
+          children: canvas
+        }),
+        scaleFlash
+          ? jsx('div', {
+              className:
+                'pointer-events-none absolute bottom-1 left-1/2 -translate-x-1/2 rounded bg-black/70 px-1.5 py-0.5 text-[0.6rem] text-white',
+              children: scaleFlash
+            })
+          : null
+      ]
+    })
+  }
 
   return jsxs('div', {
     className: 'flex h-full flex-col bg-black',
@@ -799,15 +922,7 @@ function MarkPane() {
           })
         ]
       }),
-      jsx('div', {
-        className: 'min-h-0 flex-1',
-        children: jsx(NeonCanvas, {
-          color: color,
-          status: activeStatus,
-          animMode: settings.animMode,
-          busy: !!busy
-        })
-      })
+      jsx('div', { className: 'min-h-0 flex-1', children: canvas })
     ]
   })
 }
@@ -902,7 +1017,7 @@ function SettingsPane() {
             kind: 'info',
             message:
               'Placement saved as ' + p +
-              '. Reload desktop plugins to apply. Floating is draggable and collapsible.'
+              '. ⌘K → Reload desktop plugins to apply. Floating: drag by the pane header.'
           })
         }
       },
@@ -995,9 +1110,55 @@ function SettingsPane() {
           children: [
             jsx('div', {
               className: 'text-xs font-semibold uppercase tracking-wider text-(--ui-text-tertiary)',
-              children: 'Pane placement'
+              children: 'Placement'
+            }),
+            jsx('p', {
+              className: 'text-[0.65rem] text-(--ui-text-quaternary)',
+              children:
+                'Default is floating (small in-window widget). Drag by the Hermes pane header. Edge docks are optional. Placement changes need ⌘K → Reload desktop plugins.'
             }),
             jsxs('div', { className: 'flex flex-wrap gap-2', children: placementButtons })
+          ]
+        }),
+        jsxs('div', {
+          className: 'flex flex-col gap-2',
+          children: [
+            jsx('div', {
+              className: 'text-xs font-semibold uppercase tracking-wider text-(--ui-text-tertiary)',
+              children: 'Scale'
+            }),
+            jsx('p', {
+              className: 'text-[0.65rem] text-(--ui-text-quaternary)',
+              children:
+                'Alt+scroll over the mark also scales (' +
+                String(SCALE_MIN) +
+                '–' +
+                String(SCALE_MAX) +
+                '). Floating pane pixel size applies on reload; live preview uses a transform.'
+            }),
+            jsxs('div', {
+              className: 'flex items-center gap-2',
+              children: [
+                jsx('input', {
+                  type: 'range',
+                  min: String(SCALE_MIN),
+                  max: String(SCALE_MAX),
+                  step: '0.05',
+                  value: String(clampScale(settings.scale == null ? DEFAULT_SCALE : settings.scale)),
+                  className: 'w-full',
+                  onChange: function (e) {
+                    update({ scale: clampScale(e.target.value) })
+                  }
+                }),
+                jsx('span', {
+                  className: 'w-10 shrink-0 text-right font-mono text-xs text-(--ui-text-secondary)',
+                  children:
+                    Math.round(
+                      clampScale(settings.scale == null ? DEFAULT_SCALE : settings.scale) * 100
+                    ) + '%'
+                })
+              ]
+            })
           ]
         }),
         jsx(SafeSeparator, {}),
@@ -1050,7 +1211,7 @@ function SettingsPane() {
         jsx('p', {
           className: 'text-[0.65rem] text-(--ui-text-quaternary)',
           children:
-            'Google uses GCP incidents.json (open = missing/future end). xAI may report unknown if CORS/HTML sniff fails. Poll every ~50s.'
+            'Google uses GCP incidents.json (open = missing/future end). xAI may report unknown if CORS/HTML sniff fails. Poll every ~50s. Floating stays inside the Hermes window — OS always-on-top pop-out is not available to disk plugins.'
         })
       ]
     })
@@ -1214,7 +1375,7 @@ export default {
     const initial = loadSettings()
     $settings.set(initial)
 
-    const paneData = paneDataFor(initial.panePlacement)
+    const paneData = paneDataFor(initial.panePlacement, initial.scale)
     // `openWorkspace` tiles do not belong to ctx.register, so retire them on
     // hot reload, disable, and removal instead of leaking stale views.
     ctx.onDispose(function () {
@@ -1226,6 +1387,7 @@ export default {
     ctx.register({
       id: 'mark',
       area: PANES_AREA,
+      // Short title doubles as the Hermes floating-pane drag header.
       title: 'Neon H',
       data: paneData,
       render: function () {
@@ -1233,11 +1395,17 @@ export default {
       }
     })
 
+    // Settings as a second floating pane (not a large docked workspace by default).
     ctx.register({
       id: 'settings',
       area: PANES_AREA,
       title: 'Neon H settings',
-      data: { placement: 'right', width: '300px' },
+      data: {
+        placement: 'floating',
+        anchor: 'bottom-left',
+        width: '320px',
+        height: '440px'
+      },
       render: function () {
         return jsx(SettingsPane, {})
       }

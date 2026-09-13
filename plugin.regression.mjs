@@ -35,32 +35,68 @@ const context = {
   useValue(value) { return value.get() }, useQuery() {}, Button: null, Input: null, Switch: null, SegmentedControl: null,
   StatusDot: null, ScrollArea: null, Separator: null, Badge: null,
   PALETTE_AREA: 'palette', STATUSBAR_AREAS: { right: 'status.right' }, PANES_AREA: 'panes',
-  useEffect() {}, useRef() {}, useState() {}, useCallback(fn) { return fn }, useMemo(fn) { return fn() },
+  useEffect() {}, useRef(v) { return { current: v } }, useState(v) { return [typeof v === 'function' ? v() : v, () => {}] },
+  useCallback(fn) { return fn }, useMemo(fn) { return fn() },
   jsx() {}, jsxs() {}, console
 }
 context.globalThis = context
 vm.runInNewContext(source, context, { filename: file.pathname })
 const plugin = context.__plugin
 assert.equal(plugin.id, 'hermes-neon-h')
+assert.equal(plugin.defaultEnabled, false)
 
-for (const placement of ['bottom', 'top', 'left', 'right', 'floating', 'unexpected-value']) {
+function registerWith(storageMap) {
   const registered = []
   const disposers = []
   plugin.register({
-    storage: { get(key, fallback) { return key === 'panePlacement' ? placement : fallback }, set() {} },
+    storage: {
+      get(key, fallback) {
+        return Object.prototype.hasOwnProperty.call(storageMap, key) ? storageMap[key] : fallback
+      },
+      set() {}
+    },
     register(contribution) { registered.push(contribution); return () => {} },
     onDispose(fn) { disposers.push(fn) }
   })
+  return { registered, disposers }
+}
+
+// Default (no stored placement) must be floating ~160px at scale 1.
+{
+  const { registered, disposers } = registerWith({})
+  const mark = registered.find(item => item.id === 'mark')
+  assert.ok(mark, 'default: mark pane is registered')
+  assert.equal(mark.data.placement, 'floating')
+  assert.equal(mark.data.anchor, 'bottom-right')
+  assert.equal(mark.data.width, '160px')
+  assert.equal(mark.data.height, '160px')
+  assert.equal(mark.title, 'Neon H')
+  const settingsPane = registered.find(item => item.id === 'settings')
+  assert.equal(settingsPane.data.placement, 'floating')
+  assert.equal(disposers.length, 1)
+}
+
+// Scaled floating geometry
+{
+  const { registered } = registerWith({ panePlacement: 'floating', scale: 1.5 })
+  const mark = registered.find(item => item.id === 'mark')
+  assert.equal(mark.data.placement, 'floating')
+  assert.equal(mark.data.width, '240px')
+  assert.equal(mark.data.height, '240px')
+}
+
+for (const placement of ['bottom', 'top', 'left', 'right', 'floating', 'unexpected-value']) {
+  const { registered, disposers } = registerWith({ panePlacement: placement })
   const mark = registered.find(item => item.id === 'mark')
   assert.ok(mark, `${placement}: mark pane is registered`)
-  const expectedPlacement = ['bottom', 'top', 'left', 'right', 'floating'].includes(placement)
+  const expectedPlacement = ['floating', 'bottom', 'top', 'left', 'right'].includes(placement)
     ? placement
-    : 'bottom'
+    : 'floating'
   if (expectedPlacement === 'floating') {
     assert.equal(mark.data.placement, 'floating')
     assert.equal(mark.data.anchor, 'bottom-right')
-    assert.equal(mark.data.width, '180px')
-    assert.equal(mark.data.height, '180px')
+    assert.equal(mark.data.width, '160px')
+    assert.equal(mark.data.height, '160px')
   } else {
     assert.equal(mark.data.placement, 'main')
     assert.equal(mark.data.dock.pane, 'workspace')
@@ -69,7 +105,7 @@ for (const placement of ['bottom', 'top', 'left', 'right', 'floating', 'unexpect
       expectedPlacement === 'left' || expectedPlacement === 'right' ? '260px' : '200px')
   }
   if (placement === 'unexpected-value') {
-    assert.equal(mark.data.dock.pos, 'bottom', 'invalid placement normalizes to bottom')
+    assert.equal(mark.data.placement, 'floating', 'invalid placement normalizes to floating')
   }
   assert.equal(disposers.length, 1, `${placement}: unload cleanup is registered`)
 }
@@ -87,4 +123,4 @@ assert.deepEqual(openCalls.map(call => call.id), ['hermes-neon-h:mark', 'hermes-
 disposers.at(-1)()
 assert.ok(openCalls.every(call => call.closed), 'unload closes workspace previews')
 
-console.log('hermes-neon-h regression: 5 placement modes, invalid normalization, and preview cleanup passed')
+console.log('hermes-neon-h regression: floating default, scale geometry, placements, preview cleanup passed')

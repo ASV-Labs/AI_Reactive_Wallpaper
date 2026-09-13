@@ -41,13 +41,13 @@ Folder name **must** equal plugin id: `hermes-neon-h`.
 
 Then in Hermes Desktop: **⌘K → Reload desktop plugins**.
 
-Only `plugin.js` is required at runtime (logo is embedded as a data URL). Keeping `logo.png` beside it is recommended for reveal-in-folder / redistribution.
+Only `plugin.js` is required at runtime (mark is drawn procedurally). `assets/logo.png` is for install/readme branding only — not drawn on the canvas.
 
 ## What you get (v1)
 
 | Surface | Behavior |
 |--------|----------|
-| Pane **Neon H** | Canvas on black; animated H tinted by active provider + health |
+| Pane **Neon H** | Canvas on black; **procedural** neon H tinted by active provider + health |
 | Pane **Neon H settings** | Colors (hex), animation mode, watched providers, placement |
 | Status bar (right) | Chips for OpenAI / Anthropic / Google / xAI |
 | Palette | Open Neon H · Open Neon H settings |
@@ -88,13 +88,20 @@ Settings persist via `ctx.storage` (plugin-scoped).
 - Status-bar chips + settings + palette
 - Provider-tinted neon (intentional product colors on canvas; UI chrome uses theme vars)
 
+**v1.0.1 fixes**
+
+- Static PNG blob: canvas no longer `drawImage`s the opaque-black logo + `source-atop` fill; draws a procedural vector neon H with visible breathe/pulse/flash glow+scale.
+- Shared settings: `atom` + `useValue` `$settings` store so SettingsPane updates live-propagate to MarkPane and status chips (was per-component `useState`).
+- GCP open incidents: based on missing/future `end`, not missing `status` forever.
+- Status chips surface loading / operational / degraded / major / unknown+error.
+
 **Blockers / honesty**
 
 - **No wallpaper API** — this is a desktop plugin pane, not Omarchy/OS wallpaper
 - **CORS** — some status endpoints or HTML fallbacks may fail in-renderer; unknown ≠ operational
 - **Google = GCP proxy** — open cloud incidents, not Gemini-only consumer status
 - **xAI** — JSON may 404/CORS; HTML sniff is best-effort; else `unknown`
-- **SegmentedControl / StatusDot** — used when present in the SDK; plain controls otherwise
+- **Optional SDK widgets** — Badge/Tip/Switch/ScrollArea feature-detected; plain HTML + `title=` fallbacks
 
 ## Out of scope
 

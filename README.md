@@ -7,6 +7,8 @@
 
 Animated neon **H** mark that reacts to AI **provider** health (OpenAI, Anthropic/Claude, Google, xAI) plus local Hermes turn-busy. Opt-in (`defaultEnabled: false`).
 
+![Neon H breathe](demo/neon-h-breathe.gif)
+
 **v1.1.4 default:** a small **floating** in-window mark styled toward a **floating logo** (transparent chrome via CSS; drag on the mark itself) — not a docked workspace pane. Still an in-window Hermes float (not an OS pop-out).
 
 Listed on the ASV Labs public index: [asv-labs.github.io](https://asv-labs.github.io).
